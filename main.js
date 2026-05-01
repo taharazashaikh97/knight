@@ -15,6 +15,19 @@ renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // Good for perfor
 renderer.setSize(window.innerWidth, window.innerHeight);
 document.body.appendChild(renderer.domElement);
 
+// --- ADD A SOLID FLOOR ---
+const floorGeometry = new THREE.PlaneGeometry(2000, 2000);
+const floorMaterial = new THREE.MeshStandardMaterial({ 
+    color: 0x222222, // Dark gray
+    roughness: 0.8 
+});
+const floor = new THREE.Mesh(floorGeometry, floorMaterial);
+
+// Rotate the floor to be flat (it's vertical by default)
+floor.rotation.x = -Math.PI / 2; 
+floor.receiveShadow = true;
+scene.add(floor);
+
 // --- LIGHTING ---
 scene.add(new THREE.AmbientLight(0xffffff, 0.8));
 const dirLight = new THREE.DirectionalLight(0xffffff, 1);
