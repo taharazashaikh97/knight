@@ -29,7 +29,7 @@ scene.add(carHolder);
 
 let carModel;
 let speed = 0;
-const config = { accel: 40.0, friction: 0.95, turn: 2.5, maxSpeed: 60.0 };
+const config = { accel: 40.0, friction: 0.95, turn: 2.5, maxSpeed: 100.0 };
 
 // NEW KEY TRACKER
 const keys = {};
@@ -62,16 +62,16 @@ function animate() {
 
     if (carHolder && carModel) {
         // MOVEMENT
-        if (keys['KeyW']) speed += config.accel * delta;
-        if (keys['KeyS']) speed -= config.accel * delta;
+        if (keys['KeyW']) speed -= config.accel * delta;
+        if (keys['KeyS']) speed += config.accel * delta;
         
         speed *= config.friction;
 
         // STEERING
         if (Math.abs(speed) > 0.1) {
             const sDir = speed > 0 ? 1 : -1;
-            if (keys['KeyA']) carHolder.rotation.y += config.turn * delta * sDir;
-            if (keys['KeyD']) carHolder.rotation.y -= config.turn * delta * sDir;
+            if (keys['KeyA']) carHolder.rotation.y -= config.turn * delta * sDir;
+            if (keys['KeyD']) carHolder.rotation.y += config.turn * delta * sDir;
         }
 
         // Apply movement (Try -speed if it still goes backward)
