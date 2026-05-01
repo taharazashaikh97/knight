@@ -29,7 +29,7 @@ scene.add(carHolder);
 
 let carModel;
 let speed = 0;
-const config = { accel: 70.0, friction: 0.95, turn: 1.0, maxSpeed: 90.0 };
+const config = { accel: 70.0, friction: 0.95, turn: 1.5, maxSpeed: 90.0 };
 
 // NEW KEY TRACKER
 const keys = {};
@@ -79,7 +79,7 @@ function animate() {
 
         // CAMERA
         const idealPos = camOffset.clone().applyQuaternion(carHolder.quaternion).add(carHolder.position);
-        camera.position.lerp(idealPos, 0.5);
+        camera.position.lerp(idealPos, 0.2);
         camera.lookAt(carHolder.position.x, carHolder.position.y + 1, carHolder.position.z);
     }
 
