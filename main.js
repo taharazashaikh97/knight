@@ -79,7 +79,7 @@ function animate() {
 
         // CAMERA
         const idealPos = camOffset.clone().applyQuaternion(carHolder.quaternion).add(carHolder.position);
-        camera.position.lerp(idealPos, 0.1);
+        camera.position.lerp(idealPos, 0.5);
         camera.lookAt(carHolder.position.x, carHolder.position.y + 1, carHolder.position.z);
     }
 
