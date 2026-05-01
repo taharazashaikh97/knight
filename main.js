@@ -15,6 +15,10 @@ renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // Good for perfor
 renderer.setSize(window.innerWidth, window.innerHeight);
 document.body.appendChild(renderer.domElement);
 
+// --- WORLD ELEMENTS ---
+const grid = new THREE.GridHelper(2000, 100, 0x000000, 0x555555);
+scene.add(grid);
+
 // --- ADD A SOLID FLOOR ---
 const floorGeometry = new THREE.PlaneGeometry(2000, 2000);
 const floorMaterial = new THREE.MeshStandardMaterial({ 
@@ -33,10 +37,6 @@ scene.add(new THREE.AmbientLight(0xffffff, 0.8));
 const dirLight = new THREE.DirectionalLight(0xffffff, 1);
 dirLight.position.set(5, 10, 7.5);
 scene.add(dirLight);
-
-// --- WORLD ELEMENTS ---
-const grid = new THREE.GridHelper(2000, 100, 0x000000, 0x555555);
-scene.add(grid);
 
 // --- MODEL LOADING ---
 const loader = new GLTFLoader();
