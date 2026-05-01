@@ -87,8 +87,8 @@ function animate() {
     // --- THE FIX: GROUND BOUNDARY ---
     // If the camera goes below 2 units high, snap it back to 2.
     // 2 is a good height for a "human" eye level, 0.5 is for "crawling".
-    if (camera.position.y < 2) {
-        camera.position.y = 2;
+    if (camera.position.y < 0) {
+        camera.position.y = 0;
     }
 }
 
