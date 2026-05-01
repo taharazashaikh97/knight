@@ -16,13 +16,10 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 document.body.appendChild(renderer.domElement);
 
 // --- WORLD ELEMENTS ---
-const grid = new THREE.GridHelper(2000, 100, 0x000000, 0x555555);
-scene.add(grid);
-
 // --- ADD A SOLID FLOOR ---
 const floorGeometry = new THREE.PlaneGeometry(2000, 2000);
 const floorMaterial = new THREE.MeshStandardMaterial({ 
-    color: 0x222222, // Dark gray
+    color: #FAF9F6, // Dark gray
     roughness: 0.8 
 });
 const floor = new THREE.Mesh(floorGeometry, floorMaterial);
