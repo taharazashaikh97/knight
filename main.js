@@ -19,7 +19,7 @@ document.body.appendChild(renderer.domElement);
 // --- ADD A SOLID FLOOR ---
 const floorGeometry = new THREE.PlaneGeometry(2000, 2000);
 const floorMaterial = new THREE.MeshStandardMaterial({ 
-    color: #FAF9F6, // Dark gray
+    color: 0x222222, // Dark gray
     roughness: 0.8 
 });
 const floor = new THREE.Mesh(floorGeometry, floorMaterial);
