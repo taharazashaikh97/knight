@@ -1,127 +1,111 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { PointerLockControls } from 'three/examples/jsm/controls/PointerLockControls.js';
 import Stats from 'stats';
 
-// --- 1. INITIALIZATION & PERFORMANCE ---
-const horizonColor = 0xdddddd; // Greyish-white
-
+// --- 1. SETUP ---
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(horizonColor);
-scene.fog = new THREE.Fog(horizonColor, 20, 150); // Fog helps potato PCs by not rendering far objects
+scene.background = new THREE.Color(0xdddddd);
+scene.fog = new THREE.Fog(0xdddddd, 20, 100);
 
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-camera.position.set(0, 5, 10);
-
-const renderer = new THREE.WebGLRenderer({ antialias: true });
-// Limit pixel ratio to 1 for performance on high-res "potato" screens
-renderer.setPixelRatio(1); 
+const renderer = new THREE.WebGLRenderer({ antialias: false }); // Performance boost
+renderer.setPixelRatio(1);
 renderer.setSize(window.innerWidth, window.innerHeight);
 document.body.appendChild(renderer.domElement);
 
-// --- 2. FPS COUNTER ---
 const stats = new Stats();
-stats.showPanel(0); // 0: fps
 document.body.appendChild(stats.dom);
 
-// --- 3. LIGHTING ---
-const ambientLight = new THREE.AmbientLight(0xffffff, 1.0);
-scene.add(ambientLight);
-
-const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
-dirLight.position.set(5, 10, 7.5);
+// --- 2. LIGHTING ---
+scene.add(new THREE.AmbientLight(0xffffff, 0.8));
+const dirLight = new THREE.DirectionalLight(0xffffff, 1);
+dirLight.position.set(5, 10, 5);
 scene.add(dirLight);
 
-// --- 4. WORLD ELEMENTS (Floor & Grid) ---
-// Solid Greyish-White Floor
-const floorGeo = new THREE.PlaneGeometry(2000, 2000);
-const floorMat = new THREE.MeshStandardMaterial({ color: 0xeeeeee, roughness: 1 });
-const floor = new THREE.Mesh(floorGeo, floorMat);
+// --- 3. FLOOR ---
+const floor = new THREE.Mesh(
+    new THREE.PlaneGeometry(1000, 1000),
+    new THREE.MeshLambertMaterial({ color: 0xeeeeee })
+);
 floor.rotation.x = -Math.PI / 2;
-floor.position.y = -0.05; // Slightly below grid to prevent flickering
 scene.add(floor);
 
-// Visual Grid
-const grid = new THREE.GridHelper(2000, 100, 0xaaaaaa, 0xcccccc);
-scene.add(grid);
-
-// --- 5. MODEL LOADING ---
-const loader = new GLTFLoader();
-let mixer;
-
-loader.load('knightCharacter.glb', (gltf) => {
-    scene.add(gltf.scene);
-    if (gltf.animations.length > 0) {
-        mixer = new THREE.AnimationMixer(gltf.scene);
-        mixer.clipAction(gltf.animations[0]).play();
-    }
-}, undefined, (err) => console.error("Check if knight.glb is in the folder!", err));
-
-// --- 6. SPECTATOR CONTROLS ---
-const controls = new PointerLockControls(camera, document.body);
-const instructions = document.getElementById('instructions');
-
-instructions.addEventListener('click', () => controls.lock());
-controls.addEventListener('lock', () => instructions.style.display = 'none');
-controls.addEventListener('unlock', () => instructions.style.display = 'block');
-
-const move = { fwd: false, bkd: false, lft: false, rgt: false, up: false, dn: false };
-
-document.addEventListener('keydown', (e) => {
-    if (e.code === 'KeyW') move.fwd = true;
-    if (e.code === 'KeyS') move.bkd = true;
-    if (e.code === 'KeyA') move.lft = true;
-    if (e.code === 'KeyD') move.rgt = true;
-    if (e.code === 'Space') move.up = true;
-    if (e.code === 'ShiftLeft') move.dn = true;
-});
-
-document.addEventListener('keyup', (e) => {
-    if (e.code === 'KeyW') move.fwd = false;
-    if (e.code === 'KeyS') move.bkd = false;
-    if (e.code === 'KeyA') move.lft = false;
-    if (e.code === 'KeyD') move.rgt = false;
-    if (e.code === 'Space') move.up = false;
-    if (e.code === 'ShiftLeft') move.dn = false;
-});
-
-// --- 7. ANIMATION LOOP ---
+// --- 4. PLAYER & PHYSICS VARIABLES ---
+let knight, mixer, walkAction, idleAction;
+let playerPos = new THREE.Vector3(0, 0, 0);
+let playerVelocity = new THREE.Vector3();
+const speed = 7;
 const clock = new THREE.Clock();
 
-function animate() {
-    stats.begin(); // Start FPS tracking
+const keys = { w: false, a: false, s: false, d: false };
+document.addEventListener('keydown', (e) => { if(keys.hasOwnProperty(e.key.toLowerCase())) keys[e.key.toLowerCase()] = true; });
+document.addEventListener('keyup', (e) => { if(keys.hasOwnProperty(e.key.toLowerCase())) keys[e.key.toLowerCase()] = false; });
+
+// --- 5. LOADING THE KNIGHT ---
+const loader = new GLTFLoader();
+loader.load('knight.glb', (gltf) => {
+    knight = gltf.scene;
+    scene.add(knight);
+
+    mixer = new THREE.AnimationMixer(knight);
     
+    // Note: Quaternius models usually have: 0: Idle, 1: Run/Walk
+    // If your knight slides without moving legs, swap these numbers!
+    idleAction = mixer.clipAction(gltf.animations[0]); 
+    walkAction = mixer.clipAction(gltf.animations[1] || gltf.animations[0]); 
+
+    idleAction.play();
+});
+
+// --- 6. GAME LOOP ---
+function animate() {
+    stats.begin();
     requestAnimationFrame(animate);
     const delta = clock.getDelta();
 
-    if (controls.isLocked) {
-        const speed = 40 * delta;
+    if (knight) {
+        let moving = false;
+        playerVelocity.set(0, 0, 0);
 
-        if (move.fwd) controls.moveForward(speed);
-        if (move.bkd) controls.moveForward(-speed);
-        if (move.lft) controls.moveRight(-speed);
-        if (move.rgt) controls.moveRight(speed);
-        if (move.up) camera.position.y += speed;
-        if (move.dn) camera.position.y -= speed;
+        // Simple Translation Physics
+        if (keys.w) { playerVelocity.z = -speed * delta; moving = true; }
+        if (keys.s) { playerVelocity.z = speed * delta; moving = true; }
+        if (keys.a) { playerVelocity.x = -speed * delta; moving = true; }
+        if (keys.d) { playerVelocity.x = speed * delta; moving = true; }
 
-        // GROUND BOUNDARY: Prevents flying under the floor
-        // 1.6 is roughly average human height
-        if (camera.position.y < 1.6) {
-            camera.position.y = 1.6;
+        // Apply Movement
+        knight.position.add(playerVelocity);
+
+        // Rotation Logic: Make knight face the direction of movement
+        if (moving) {
+            const angle = Math.atan2(playerVelocity.x, playerVelocity.z);
+            knight.rotation.y = angle;
+            
+            // Animation Switch
+            if (walkAction && !walkAction.isRunning()) {
+                idleAction.stop();
+                walkAction.play();
+            }
+        } else {
+            if (idleAction && !idleAction.isRunning()) {
+                walkAction.stop();
+                idleAction.play();
+            }
         }
+
+        // --- THIRD PERSON CAMERA PHYSICS ---
+        // Camera stays at a fixed offset behind the knight
+        const cameraOffset = new THREE.Vector3(0, 5, 10); 
+        const desiredCameraPos = knight.position.clone().add(cameraOffset);
+        
+        // Smoothly lerp (linear interpolate) camera for a "weighty" feel
+        camera.position.lerp(desiredCameraPos, 0.1); 
+        camera.lookAt(knight.position);
     }
 
     if (mixer) mixer.update(delta);
     renderer.render(scene, camera);
-
-    stats.end(); // End FPS tracking
+    stats.end();
 }
 
 animate();
-
-// Handle Resize
-window.addEventListener('resize', () => {
-    camera.aspect = window.innerWidth / window.innerHeight;
-    camera.updateProjectionMatrix();
-    renderer.setSize(window.innerWidth, window.innerHeight);
-});
