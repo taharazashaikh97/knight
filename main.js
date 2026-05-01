@@ -49,7 +49,7 @@ scene.add(grid);
 const loader = new GLTFLoader();
 let mixer;
 
-loader.load('knight.glb', (gltf) => {
+loader.load('knightCharacter.glb', (gltf) => {
     scene.add(gltf.scene);
     if (gltf.animations.length > 0) {
         mixer = new THREE.AnimationMixer(gltf.scene);
