@@ -61,33 +61,53 @@ function animate() {
     stats.begin();
 
     if (carHolder && carModel) {
-        // MOVEMENT
+        // --- 1. EXISTING PHYSICS ---
         if (keys['KeyW']) speed -= config.accel * delta;
         if (keys['KeyS']) speed += config.accel * delta;
-        
         speed *= config.friction;
 
-        // STEERING
         if (Math.abs(speed) > 0.1) {
             const sDir = speed > 0 ? 1 : -1;
             if (keys['KeyA']) carHolder.rotation.y -= config.turn * delta * sDir;
             if (keys['KeyD']) carHolder.rotation.y += config.turn * delta * sDir;
         }
+        carHolder.translateZ(-speed * delta);
 
-        // Apply movement (Try -speed if it still goes backward)
-        carHolder.translateZ(speed * delta);
+        // --- 2. FORZA STYLE CAMERA ---
+        
+        // DYNAMIC FOV: The faster you go, the wider the lens gets (Speed Warp)
+        // Base FOV is 75, adds up to 15 degrees at max speed
+        const targetFOV = 75 + (Math.abs(speed) / config.maxSpeed) * 15;
+        camera.fov = THREE.MathUtils.lerp(camera.fov, targetFOV, 0.1);
+        camera.updateProjectionMatrix();
 
-        // CAMERA
-        const idealPos = camOffset.clone().applyQuaternion(carHolder.quaternion).add(carHolder.position);
-        camera.position.lerp(idealPos, 0.1);
-        camera.lookAt(carHolder.position.x, carHolder.position.y + 1, carHolder.position.z);
+        // OFFSET CALCULATIONS
+        // As you speed up, the camera pulls back further (camOffset.z + extra)
+        const speedFactor = Math.abs(speed) / config.maxSpeed;
+        const dynamicOffset = new THREE.Vector3(
+            0, 
+            3 + (speedFactor * 0.5), // Rises slightly
+            8 + (speedFactor * 4)    // Pulls back significantly
+        );
+
+        // Calculate position behind the car
+        const idealPos = dynamicOffset.clone().applyQuaternion(carHolder.quaternion).add(carHolder.position);
+        
+        // LERP: Using a slightly higher value (0.15) to prevent the "jitter" 
+        // while keeping the smooth Forza "floating" feel.
+        camera.position.lerp(idealPos, 0.15);
+
+        // LOOK-AT: Look slightly ahead of the car to see the road
+        const lookAtTarget = carHolder.position.clone();
+        const lookAhead = new THREE.Vector3(0, 0, -5).applyQuaternion(carHolder.quaternion);
+        lookAtTarget.add(lookAhead); 
+        
+        camera.lookAt(lookAtTarget.x, lookAtTarget.y + 1.2, lookAtTarget.z);
     }
 
     renderer.render(scene, camera);
     stats.end();
 }
-animate();
-
 window.addEventListener('resize', () => {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
