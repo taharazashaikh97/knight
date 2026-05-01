@@ -2,104 +2,86 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import Stats from 'stats';
 
-// --- 1. SETUP ---
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0xdddddd);
-scene.fog = new THREE.Fog(0xdddddd, 20, 100);
-
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-const renderer = new THREE.WebGLRenderer({ antialias: false }); // Performance boost
-renderer.setPixelRatio(1);
+const renderer = new THREE.WebGLRenderer({ antialias: false });
 renderer.setSize(window.innerWidth, window.innerHeight);
 document.body.appendChild(renderer.domElement);
 
 const stats = new Stats();
 document.body.appendChild(stats.dom);
 
-// --- 2. LIGHTING ---
-scene.add(new THREE.AmbientLight(0xffffff, 0.8));
-const dirLight = new THREE.DirectionalLight(0xffffff, 1);
-dirLight.position.set(5, 10, 5);
-scene.add(dirLight);
-
-// --- 3. FLOOR ---
-const floor = new THREE.Mesh(
-    new THREE.PlaneGeometry(1000, 1000),
-    new THREE.MeshLambertMaterial({ color: 0xeeeeee })
-);
+scene.add(new THREE.AmbientLight(0xffffff, 1));
+const floor = new THREE.Mesh(new THREE.PlaneGeometry(100, 100), new THREE.MeshLambertMaterial({ color: 0xcccccc }));
 floor.rotation.x = -Math.PI / 2;
 scene.add(floor);
 
-// --- 4. PLAYER & PHYSICS VARIABLES ---
-let knight, mixer, walkAction, idleAction;
-let playerPos = new THREE.Vector3(0, 0, 0);
-let playerVelocity = new THREE.Vector3();
-const speed = 7;
-const clock = new THREE.Clock();
-
+let knight, mixer, currentAction;
+let animations = {};
 const keys = { w: false, a: false, s: false, d: false };
-document.addEventListener('keydown', (e) => { if(keys.hasOwnProperty(e.key.toLowerCase())) keys[e.key.toLowerCase()] = true; });
-document.addEventListener('keyup', (e) => { if(keys.hasOwnProperty(e.key.toLowerCase())) keys[e.key.toLowerCase()] = false; });
 
-// --- 5. LOADING THE KNIGHT ---
 const loader = new GLTFLoader();
 loader.load('knight.glb', (gltf) => {
     knight = gltf.scene;
     scene.add(knight);
-
     mixer = new THREE.AnimationMixer(knight);
     
-    // Note: Quaternius models usually have: 0: Idle, 1: Run/Walk
-    // If your knight slides without moving legs, swap these numbers!
-    idleAction = mixer.clipAction(gltf.animations[0]); 
-    walkAction = mixer.clipAction(gltf.animations[1] || gltf.animations[0]); 
+    // Store all animations by name so we don't guess indexes
+    gltf.animations.forEach((clip) => {
+        animations[clip.name.toLowerCase()] = mixer.clipAction(clip);
+    });
 
-    idleAction.play();
+    // Start with idle - common names are 'idle', 'static', or animations[0]
+    currentAction = animations['idle'] || mixer.clipAction(gltf.animations[0]);
+    currentAction.play();
 });
 
-// --- 6. GAME LOOP ---
+window.addEventListener('keydown', (e) => { if(keys.hasOwnProperty(e.key.toLowerCase())) keys[e.key.toLowerCase()] = true; });
+window.addEventListener('keyup', (e) => { if(keys.hasOwnProperty(e.key.toLowerCase())) keys[e.key.toLowerCase()] = false; });
+
+const clock = new THREE.Clock();
+
 function animate() {
-    stats.begin();
     requestAnimationFrame(animate);
     const delta = clock.getDelta();
+    stats.begin();
 
     if (knight) {
-        let moving = false;
-        playerVelocity.set(0, 0, 0);
+        const moveDir = new THREE.Vector3();
+        if (keys.w) moveDir.z -= 1;
+        if (keys.s) moveDir.z += 1;
+        if (keys.a) moveDir.x -= 1;
+        if (keys.d) moveDir.x += 1;
 
-        // Simple Translation Physics
-        if (keys.w) { playerVelocity.z = -speed * delta; moving = true; }
-        if (keys.s) { playerVelocity.z = speed * delta; moving = true; }
-        if (keys.a) { playerVelocity.x = -speed * delta; moving = true; }
-        if (keys.d) { playerVelocity.x = speed * delta; moving = true; }
-
-        // Apply Movement
-        knight.position.add(playerVelocity);
-
-        // Rotation Logic: Make knight face the direction of movement
-        if (moving) {
-            const angle = Math.atan2(playerVelocity.x, playerVelocity.z);
-            knight.rotation.y = angle;
+        if (moveDir.length() > 0) {
+            moveDir.normalize();
+            knight.position.add(moveDir.multiplyScalar(7 * delta));
             
-            // Animation Switch
-            if (walkAction && !walkAction.isRunning()) {
-                idleAction.stop();
-                walkAction.play();
+            // Rotation: Face the direction of movement
+            const targetRotation = Math.atan2(moveDir.x, moveDir.z);
+            knight.rotation.y = targetRotation;
+
+            // Play walk/run animation if moving
+            const walk = animations['walk'] || animations['run'];
+            if (walk && currentAction !== walk) {
+                currentAction.stop();
+                currentAction = walk;
+                currentAction.play();
             }
         } else {
-            if (idleAction && !idleAction.isRunning()) {
-                walkAction.stop();
-                idleAction.play();
+            // Play idle if stopped
+            const idle = animations['idle'] || mixer.clipAction(knight.animations ? knight.animations[0] : Object.values(animations)[0]);
+            if (idle && currentAction !== idle) {
+                currentAction.stop();
+                currentAction = idle;
+                currentAction.play();
             }
         }
 
-        // --- THIRD PERSON CAMERA PHYSICS ---
-        // Camera stays at a fixed offset behind the knight
-        const cameraOffset = new THREE.Vector3(0, 5, 10); 
-        const desiredCameraPos = knight.position.clone().add(cameraOffset);
-        
-        // Smoothly lerp (linear interpolate) camera for a "weighty" feel
-        camera.position.lerp(desiredCameraPos, 0.1); 
+        // Camera Follow
+        const offset = new THREE.Vector3(0, 5, 10);
+        camera.position.lerp(knight.position.clone().add(offset), 0.1);
         camera.lookAt(knight.position);
     }
 
@@ -107,5 +89,4 @@ function animate() {
     renderer.render(scene, camera);
     stats.end();
 }
-
 animate();
