@@ -75,17 +75,22 @@ function animate() {
     const delta = clock.getDelta();
 
     if (controls.isLocked) {
-        const speed = 50 * delta;
-        const dir = new THREE.Vector3();
+    const speed = 50 * delta;
 
-        // Spectator fly logic
-        if (move.fwd) controls.moveForward(speed);
-        if (move.bkd) controls.moveForward(-speed);
-        if (move.lft) controls.moveRight(-speed);
-        if (move.rgt) controls.moveRight(speed);
-        if (move.up) camera.position.y += speed;
-        if (move.dn) camera.position.y -= speed;
+    if (move.fwd) controls.moveForward(speed);
+    if (move.bkd) controls.moveForward(-speed);
+    if (move.lft) controls.moveRight(-speed);
+    if (move.rgt) controls.moveRight(speed);
+    if (move.up) camera.position.y += speed;
+    if (move.dn) camera.position.y -= speed;
+
+    // --- THE FIX: GROUND BOUNDARY ---
+    // If the camera goes below 2 units high, snap it back to 2.
+    // 2 is a good height for a "human" eye level, 0.5 is for "crawling".
+    if (camera.position.y < 2) {
+        camera.position.y = 2;
     }
+}
 
     if (mixer) mixer.update(delta);
     renderer.render(scene, camera);
