@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { PointerLockControls } from 'three/examples/jsm/controls/PointerLockControls.js';
+import Stats from 'stats';
 
 // --- INITIALIZATION ---
 const scene = new THREE.Scene();
@@ -49,6 +50,10 @@ loader.load('knight.glb', (gltf) => {
         mixer.clipAction(gltf.animations[0]).play();
     }
 });
+
+const stats = new Stats();
+stats.showPanel(0); // 0: fps, 1: ms (millisecond per frame), 2: mb (memory)
+document.body.appendChild(stats.dom);
 
 // --- CONTROLS ---
 const controls = new PointerLockControls(camera, document.body);
@@ -107,7 +112,22 @@ function animate() {
 
     if (mixer) mixer.update(delta);
     renderer.render(scene, camera);
+
+
+    
+    stats.begin(); // Start tracking this frame
+
+    requestAnimationFrame(animate);
+    const delta = clock.getDelta();
+
+    // ... (rest of your movement and render code) ...
+    renderer.render(scene, camera);
+
+    stats.end(); // End tracking this frame
+    
 }
+
+
 
 animate();
 
