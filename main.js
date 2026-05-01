@@ -3,43 +3,49 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { PointerLockControls } from 'three/examples/jsm/controls/PointerLockControls.js';
 import Stats from 'stats';
 
-// --- INITIALIZATION ---
+// --- 1. INITIALIZATION & PERFORMANCE ---
+const horizonColor = 0xdddddd; // Greyish-white
+
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x87ceeb);
-scene.fog = new THREE.Fog(0x87ceeb, 50, 250);
+scene.background = new THREE.Color(horizonColor);
+scene.fog = new THREE.Fog(horizonColor, 20, 150); // Fog helps potato PCs by not rendering far objects
 
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
 camera.position.set(0, 5, 10);
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // Good for performance
+// Limit pixel ratio to 1 for performance on high-res "potato" screens
+renderer.setPixelRatio(1); 
 renderer.setSize(window.innerWidth, window.innerHeight);
 document.body.appendChild(renderer.domElement);
 
-// --- WORLD ELEMENTS ---
-const grid = new THREE.GridHelper(2000, 100, 0x000000, 0x555555);
-scene.add(grid);
+// --- 2. FPS COUNTER ---
+const stats = new Stats();
+stats.showPanel(0); // 0: fps
+document.body.appendChild(stats.dom);
 
-// --- ADD A SOLID FLOOR ---
-const floorGeometry = new THREE.PlaneGeometry(2000, 2000);
-const floorMaterial = new THREE.MeshStandardMaterial({ 
-    color: 0xcccccc, // Dark gray
-    roughness: 0.8 
-});
-const floor = new THREE.Mesh(floorGeometry, floorMaterial);
+// --- 3. LIGHTING ---
+const ambientLight = new THREE.AmbientLight(0xffffff, 1.0);
+scene.add(ambientLight);
 
-// Rotate the floor to be flat (it's vertical by default)
-floor.rotation.x = -Math.PI / 2; 
-floor.receiveShadow = true;
-scene.add(floor);
-
-// --- LIGHTING ---
-scene.add(new THREE.AmbientLight(0xffffff, 0.8));
-const dirLight = new THREE.DirectionalLight(0xffffff, 1);
+const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
 dirLight.position.set(5, 10, 7.5);
 scene.add(dirLight);
 
-// --- MODEL LOADING ---
+// --- 4. WORLD ELEMENTS (Floor & Grid) ---
+// Solid Greyish-White Floor
+const floorGeo = new THREE.PlaneGeometry(2000, 2000);
+const floorMat = new THREE.MeshStandardMaterial({ color: 0xeeeeee, roughness: 1 });
+const floor = new THREE.Mesh(floorGeo, floorMat);
+floor.rotation.x = -Math.PI / 2;
+floor.position.y = -0.05; // Slightly below grid to prevent flickering
+scene.add(floor);
+
+// Visual Grid
+const grid = new THREE.GridHelper(2000, 100, 0xaaaaaa, 0xcccccc);
+scene.add(grid);
+
+// --- 5. MODEL LOADING ---
 const loader = new GLTFLoader();
 let mixer;
 
@@ -49,13 +55,9 @@ loader.load('knight.glb', (gltf) => {
         mixer = new THREE.AnimationMixer(gltf.scene);
         mixer.clipAction(gltf.animations[0]).play();
     }
-});
+}, undefined, (err) => console.error("Check if knight.glb is in the folder!", err));
 
-const stats = new Stats();
-stats.showPanel(0); // 0: fps, 1: ms (millisecond per frame), 2: mb (memory)
-document.body.appendChild(stats.dom);
-
-// --- CONTROLS ---
+// --- 6. SPECTATOR CONTROLS ---
 const controls = new PointerLockControls(camera, document.body);
 const instructions = document.getElementById('instructions');
 
@@ -63,9 +65,7 @@ instructions.addEventListener('click', () => controls.lock());
 controls.addEventListener('lock', () => instructions.style.display = 'none');
 controls.addEventListener('unlock', () => instructions.style.display = 'block');
 
-// Movement State
 const move = { fwd: false, bkd: false, lft: false, rgt: false, up: false, dn: false };
-const velocity = new THREE.Vector3();
 
 document.addEventListener('keydown', (e) => {
     if (e.code === 'KeyW') move.fwd = true;
@@ -85,52 +85,41 @@ document.addEventListener('keyup', (e) => {
     if (e.code === 'ShiftLeft') move.dn = false;
 });
 
-// --- LOOP ---
+// --- 7. ANIMATION LOOP ---
 const clock = new THREE.Clock();
 
 function animate() {
+    stats.begin(); // Start FPS tracking
+    
     requestAnimationFrame(animate);
     const delta = clock.getDelta();
 
     if (controls.isLocked) {
-    const speed = 50 * delta;
+        const speed = 40 * delta;
 
-    if (move.fwd) controls.moveForward(speed);
-    if (move.bkd) controls.moveForward(-speed);
-    if (move.lft) controls.moveRight(-speed);
-    if (move.rgt) controls.moveRight(speed);
-    if (move.up) camera.position.y += speed;
-    if (move.dn) camera.position.y -= speed;
+        if (move.fwd) controls.moveForward(speed);
+        if (move.bkd) controls.moveForward(-speed);
+        if (move.lft) controls.moveRight(-speed);
+        if (move.rgt) controls.moveRight(speed);
+        if (move.up) camera.position.y += speed;
+        if (move.dn) camera.position.y -= speed;
 
-    // --- THE FIX: GROUND BOUNDARY ---
-    // If the camera goes below 2 units high, snap it back to 2.
-    // 2 is a good height for a "human" eye level, 0.5 is for "crawling".
-    if (camera.position.y < 2) {
-        camera.position.y = 2;
+        // GROUND BOUNDARY: Prevents flying under the floor
+        // 1.6 is roughly average human height
+        if (camera.position.y < 1.6) {
+            camera.position.y = 1.6;
+        }
     }
-}
 
     if (mixer) mixer.update(delta);
     renderer.render(scene, camera);
 
-
-    
-    stats.begin(); // Start tracking this frame
-
-    requestAnimationFrame(animate);
-    const delta = clock.getDelta();
-
-    // ... (rest of your movement and render code) ...
-    renderer.render(scene, camera);
-
-    stats.end(); // End tracking this frame
-    
+    stats.end(); // End FPS tracking
 }
-
-
 
 animate();
 
+// Handle Resize
 window.addEventListener('resize', () => {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
