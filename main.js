@@ -2,11 +2,9 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import Stats from 'stats';
 
-// --- 1. RENDERER & CAMERA (Flicker Fix) ---
+// --- 1. SETUP ---
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0xdddddd);
-
-// Change Near from 0.1 to 1.0. This is the #1 fix for flickering on old GPUs.
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 1.0, 500);
 const renderer = new THREE.WebGLRenderer({ antialias: false, precision: 'lowp' });
 renderer.setPixelRatio(1);
@@ -15,80 +13,74 @@ document.body.appendChild(renderer.domElement);
 
 const stats = new Stats();
 document.body.appendChild(stats.dom);
-
 scene.add(new THREE.AmbientLight(0xffffff, 1.2));
 
-// --- 2. FLOOR & GRID (Flicker Fix) ---
-// Move floor even further away to ensure no Z-fighting
-const floor = new THREE.Mesh(
-    new THREE.PlaneGeometry(2000, 2000),
-    new THREE.MeshLambertMaterial({ color: 0xeeeeee })
-);
+// --- 2. ENVIRONMENT ---
+const floor = new THREE.Mesh(new THREE.PlaneGeometry(2000, 2000), new THREE.MeshLambertMaterial({ color: 0xeeeeee }));
 floor.rotation.x = -Math.PI / 2;
-floor.position.y = -2.0; // Deep gap to stop flickering
+floor.position.y = -2.0; 
 scene.add(floor);
-
 const grid = new THREE.GridHelper(2000, 100, 0xaaaaaa, 0xcccccc);
-grid.position.y = 0.0; 
 scene.add(grid);
 
-// --- 3. CAR WRAPPER LOGIC ---
-// We use a "Holder" object. We move the holder, and rotate the model INSIDE it.
-const carHolder = new THREE.Object3D();
+// --- 3. CAR LOGIC ---
+const carHolder = new THREE.Group(); // Using Group instead of Object3D
 scene.add(carHolder);
 
 let carModel;
 let speed = 0;
-const config = { accel: 35.0, friction: 0.96, turn: 2.2, maxSpeed: 55.0 };
-const keys = { w: false, s: false, a: false, d: false };
+const config = { accel: 40.0, friction: 0.95, turn: 2.5, maxSpeed: 60.0 };
+
+// NEW KEY TRACKER
+const keys = {};
 
 const loader = new GLTFLoader();
 loader.load('car.glb', (gltf) => {
     carModel = gltf.scene;
-    
-    // --- THE "FORCE FACE FORWARD" FIX ---
-    // If the car is backwards, we flip the model INSIDE the holder
-    // If it's still backwards, change Math.PI to 0, or Math.PI / 2
-    carModel.rotation.y = Math.PI; 
-    
+    carModel.rotation.y = Math.PI; // Your solved orientation
     carHolder.add(carModel);
-    console.log("Car attached to holder");
+    console.log("CAR READY - PRESS W TO GO");
 });
 
-window.addEventListener('keydown', (e) => { if(keys.hasOwnProperty(e.key.toLowerCase())) keys[e.key.toLowerCase()] = true; });
-window.addEventListener('keyup', (e) => { if(keys.hasOwnProperty(e.key.toLowerCase())) keys[e.key.toLowerCase()] = false; });
+// BETTER EVENT LISTENERS
+window.addEventListener('keydown', (e) => { 
+    keys[e.code] = true; 
+    console.log("Key Pressed:", e.code); // This will show in F12 console
+});
+window.addEventListener('keyup', (e) => { 
+    keys[e.code] = false; 
+});
 
 // --- 4. ANIMATION LOOP ---
 const clock = new THREE.Clock();
 const camOffset = new THREE.Vector3(0, 4, 10); 
 
 function animate() {
-    stats.begin();
     requestAnimationFrame(animate);
     const delta = clock.getDelta();
+    stats.begin();
 
     if (carHolder && carModel) {
-        // --- MOVEMENT (W/S) ---
-        if (keys.w) speed += config.accel * delta;
-        if (keys.s) speed -= config.accel * delta;
+        // MOVEMENT
+        if (keys['KeyW']) speed += config.accel * delta;
+        if (keys['KeyS']) speed -= config.accel * delta;
+        
         speed *= config.friction;
 
-        // --- STEERING (A/D) ---
-        if (Math.abs(speed) > 0.2) {
-            const steeringDir = speed > 0 ? 1 : -1;
-            // If steering is reversed, change += to -=
-            if (keys.a) carHolder.rotation.y += config.turn * delta * steeringDir;
-            if (keys.d) carHolder.rotation.y -= config.turn * delta * steeringDir;
+        // STEERING
+        if (Math.abs(speed) > 0.1) {
+            const sDir = speed > 0 ? 1 : -1;
+            if (keys['KeyA']) carHolder.rotation.y += config.turn * delta * sDir;
+            if (keys['KeyD']) carHolder.rotation.y -= config.turn * delta * sDir;
         }
 
-        // We move the HOLDER. Because the model is inside, it follows.
-        // If the car drives backwards when you press W, change this to -speed
+        // Apply movement (Try -speed if it still goes backward)
         carHolder.translateZ(speed * delta);
 
-        // --- SMOOTH CAMERA ---
+        // CAMERA
         const idealPos = camOffset.clone().applyQuaternion(carHolder.quaternion).add(carHolder.position);
         camera.position.lerp(idealPos, 0.1);
-        camera.lookAt(carHolder.position.clone().add(new THREE.Vector3(0, 1, 0)));
+        camera.lookAt(carHolder.position.x, carHolder.position.y + 1, carHolder.position.z);
     }
 
     renderer.render(scene, camera);
