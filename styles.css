@@ -1,0 +1,22 @@
+body { 
+    margin: 0; 
+    overflow: hidden; 
+    background-color: #000; 
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+}
+
+#instructions {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: white;
+    background: rgba(0, 0, 0, 0.7);
+    padding: 30px;
+    text-align: center;
+    border-radius: 15px;
+    border: 1px solid #444;
+    cursor: pointer;
+    z-index: 10;
+    user-select: none;
+}
