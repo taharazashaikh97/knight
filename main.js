@@ -2,18 +2,13 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import Stats from 'stats';
 
-// --- 1. SETTINGS ---
-const horizonColor = 0xdddddd;
+// --- 1. RENDERER & CAMERA (Flicker Fix) ---
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(horizonColor);
-scene.fog = new THREE.Fog(horizonColor, 10, 100);
+scene.background = new THREE.Color(0xdddddd);
 
-const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-const renderer = new THREE.WebGLRenderer({ 
-    antialias: false, 
-    precision: 'lowp', // Keep this for your G41
-    powerPreference: 'low-power' 
-});
+// Change Near from 0.1 to 1.0. This is the #1 fix for flickering on old GPUs.
+const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 1.0, 500);
+const renderer = new THREE.WebGLRenderer({ antialias: false, precision: 'lowp' });
 renderer.setPixelRatio(1);
 renderer.setSize(window.innerWidth, window.innerHeight);
 document.body.appendChild(renderer.domElement);
@@ -21,80 +16,79 @@ document.body.appendChild(renderer.domElement);
 const stats = new Stats();
 document.body.appendChild(stats.dom);
 
-// --- 2. LIGHTING ---
 scene.add(new THREE.AmbientLight(0xffffff, 1.2));
 
-// --- 3. THE FLOOR (FIXED FLICKERING) ---
-// We move the floor further down so your old GPU doesn't get confused between the grid and floor
+// --- 2. FLOOR & GRID (Flicker Fix) ---
+// Move floor even further away to ensure no Z-fighting
 const floor = new THREE.Mesh(
     new THREE.PlaneGeometry(2000, 2000),
     new THREE.MeshLambertMaterial({ color: 0xeeeeee })
 );
 floor.rotation.x = -Math.PI / 2;
-floor.position.y = -0.5; // Moved down significantly to stop flickering
+floor.position.y = -2.0; // Deep gap to stop flickering
 scene.add(floor);
 
 const grid = new THREE.GridHelper(2000, 100, 0xaaaaaa, 0xcccccc);
-grid.position.y = 0.01; // Lift grid slightly above zero
+grid.position.y = 0.0; 
 scene.add(grid);
 
-// --- 4. CAR & PHYSICS ---
-let car;
+// --- 3. CAR WRAPPER LOGIC ---
+// We use a "Holder" object. We move the holder, and rotate the model INSIDE it.
+const carHolder = new THREE.Object3D();
+scene.add(carHolder);
+
+let carModel;
 let speed = 0;
-const config = {
-    accel: 30.0,
-    friction: 0.97,
-    turn: 2.0,
-    maxSpeed: 50.0
-};
+const config = { accel: 35.0, friction: 0.96, turn: 2.2, maxSpeed: 55.0 };
 const keys = { w: false, s: false, a: false, d: false };
 
-// --- 5. LOADING CAR (FIXED ORIENTATION) ---
 const loader = new GLTFLoader();
 loader.load('car.glb', (gltf) => {
-    car = gltf.scene;
+    carModel = gltf.scene;
     
-    // THE FIX: Rotate the car 180 degrees (Math.PI) so its "Front" faces the right way
-    car.rotation.y = Math.PI; 
+    // --- THE "FORCE FACE FORWARD" FIX ---
+    // If the car is backwards, we flip the model INSIDE the holder
+    // If it's still backwards, change Math.PI to 0, or Math.PI / 2
+    carModel.rotation.y = Math.PI; 
     
-    scene.add(car);
-}, undefined, (err) => console.error(err));
+    carHolder.add(carModel);
+    console.log("Car attached to holder");
+});
 
 window.addEventListener('keydown', (e) => { if(keys.hasOwnProperty(e.key.toLowerCase())) keys[e.key.toLowerCase()] = true; });
 window.addEventListener('keyup', (e) => { if(keys.hasOwnProperty(e.key.toLowerCase())) keys[e.key.toLowerCase()] = false; });
 
-// --- 6. ANIMATION LOOP ---
+// --- 4. ANIMATION LOOP ---
 const clock = new THREE.Clock();
-const camOffset = new THREE.Vector3(0, 3, 8); 
+const camOffset = new THREE.Vector3(0, 4, 10); 
 
 function animate() {
     stats.begin();
     requestAnimationFrame(animate);
     const delta = clock.getDelta();
 
-    if (car) {
-        // Physics logic
+    if (carHolder && carModel) {
+        // --- MOVEMENT (W/S) ---
         if (keys.w) speed += config.accel * delta;
         if (keys.s) speed -= config.accel * delta;
         speed *= config.friction;
 
+        // --- STEERING (A/D) ---
         if (Math.abs(speed) > 0.2) {
             const steeringDir = speed > 0 ? 1 : -1;
-            // Flipped turn logic to match the 180-degree rotation
-            if (keys.a) car.rotation.y += config.turn * delta * steeringDir;
-            if (keys.d) car.rotation.y -= config.turn * delta * steeringDir;
+            // If steering is reversed, change += to -=
+            if (keys.a) carHolder.rotation.y += config.turn * delta * steeringDir;
+            if (keys.d) carHolder.rotation.y -= config.turn * delta * steeringDir;
         }
 
-        // Apply movement along the car's local Forward axis
-        car.translateZ(speed * delta);
+        // We move the HOLDER. Because the model is inside, it follows.
+        // If the car drives backwards when you press W, change this to -speed
+        carHolder.translateZ(speed * delta);
 
-        // --- CAMERA FOLLOW ---
-        // We look at the car's position, but slightly raised
-        const targetPos = car.position.clone();
-        const idealPos = camOffset.clone().applyQuaternion(car.quaternion).add(targetPos);
-        
+        // --- SMOOTH CAMERA ---
+        const idealPos = camOffset.clone().applyQuaternion(carHolder.quaternion).add(carHolder.position);
         camera.position.lerp(idealPos, 0.1);
-        camera.lookAt(targetPos.add(new THREE.Vector3(0, 1, 0)));
+        camera.lookAt(carHolder.position.clone().add(new THREE.Vector3(0, 1, 0)));
     }
 
     renderer.render(scene, camera);
