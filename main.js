@@ -47,7 +47,7 @@ const keys = { w: false, s: false, a: false, d: false };
 
 // --- 5. LOADING YOUR CAR.GLB ---
 const loader = new GLTFLoader();
-loader.load('car.glb', (gltf) => {
+loader.load('Knight.glb', (gltf) => {
     car = gltf.scene;
     
     // Scale fix: some models come in huge or tiny
