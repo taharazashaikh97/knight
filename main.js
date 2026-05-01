@@ -29,7 +29,7 @@ scene.add(carHolder);
 
 let carModel;
 let speed = 0;
-const config = { accel: 40.0, friction: 0.95, turn: 2.5, maxSpeed: 60.0 };
+const config = { accel: 70.0, friction: 0.95, turn: 1.0, maxSpeed: 90.0 };
 
 // NEW KEY TRACKER
 const keys = {};
