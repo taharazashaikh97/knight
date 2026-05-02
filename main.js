@@ -199,20 +199,81 @@ let isInventoryOpen = false;
 // Create 24 empty slots
 const inventoryData = Array.from({ length: 24 }, () => ({ item: null, count: 0 }));
 
-// Create the UI slots
+let draggedSlotIndex = null;
+
+// --- INVENTORY UI  ---
 function buildInventoryUI() {
     inventoryUI.innerHTML = '';
     inventoryData.forEach((slot, index) => {
         const div = document.createElement('div');
         div.className = 'slot';
+        div.setAttribute('draggable', slot.item ? 'true' : 'false');
+        
         if (slot.item) {
             div.innerHTML = `<span>${slot.item}</span><div class="count">${slot.count}</div>`;
         }
+
+        // --- DRAG EVENTS ---
+        div.addEventListener('dragstart', () => { draggedSlotIndex = index; });
+        div.addEventListener('dragover', (e) => { 
+            e.preventDefault(); 
+            div.classList.add('drag-over'); 
+        });
+        div.addEventListener('dragleave', () => div.classList.remove('drag-over'));
+        
+        div.addEventListener('drop', (e) => {
+            e.preventDefault();
+            div.classList.remove('drag-over');
+            swapSlots(draggedSlotIndex, index);
+        });
+
+        // --- RIGHT CLICK TO THROW ---
+        div.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            if (slot.item) throwItem(index);
+        });
+
         inventoryUI.appendChild(div);
     });
 }
-buildInventoryUI();
 
+// --- SWAP LOGIC (Rearrange) ---
+function swapSlots(fromIndex, toIndex) {
+    const temp = inventoryData[fromIndex];
+    inventoryData[fromIndex] = inventoryData[toIndex];
+    inventoryData[toIndex] = temp;
+    buildInventoryUI();
+}
+
+// --- THROW ITEM LOGIC ---
+function throwItem(index) {
+    const slot = inventoryData[index];
+    if (!slot.item) return;
+
+    // Summon item back into 3D world in front of camera
+    const spawnPos = camera.position.clone();
+    const direction = new THREE.Vector3();
+    camera.getWorldDirection(direction);
+    spawnPos.add(direction.multiplyScalar(3)); // 3 feet in front
+
+    // Create the mesh again (Simplified for this example)
+    const typeColor = slot.item === 'Rock' ? 0x888888 : 0x5C4033;
+    const geo = slot.item === 'Rock' ? new THREE.IcosahedronGeometry(0.5, 0) : new THREE.CylinderGeometry(0.3, 0.3, 2, 8);
+    const mesh = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ color: typeColor }));
+    
+    mesh.position.copy(spawnPos);
+    mesh.position.y = Math.max(spawnPos.y, 0.5); // Ensure it's not under ground
+    mesh.userData = { itemName: slot.item };
+    itemsGroup.add(mesh);
+
+    // Reduce count or clear slot
+    slot.count--;
+    if (slot.count <= 0) {
+        slot.item = null;
+        slot.count = 0;
+    }
+    buildInventoryUI();
+}
 // --- TOGGLE LOGIC ---
 const crosshair = document.getElementById('crosshair');
 
