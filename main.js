@@ -47,7 +47,7 @@ const loader = new GLTFLoader();
 let mixer;
 
 // Original Knight Model
-loader.load('knight.glb', (gltf) => {
+loader.load('kNNight.glb', (gltf) => {
     scene.add(gltf.scene);
     if (gltf.animations.length > 0) {
         mixer = new THREE.AnimationMixer(gltf.scene);
@@ -57,7 +57,7 @@ loader.load('knight.glb', (gltf) => {
 
 // --- NEW: GROUND OBJECT SUMMON ---
 // This loads your second object and places it firmly on the ground
-loader.load('car.glb', (gltf) => {
+loader.load('Knight.glb', (gltf) => {
     const groundObj = gltf.scene;
     
     // Position: x, y, z (0 on Y means it is touching the floor)
