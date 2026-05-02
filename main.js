@@ -94,6 +94,89 @@ document.addEventListener('keyup', (e) => {
     if (e.code === 'ShiftLeft') move.dn = false;
 });
 
+// ---  SETTINGS & GROUPS ---
+const itemsGroup = new THREE.Group();
+scene.add(itemsGroup);
+
+const promptUI = document.getElementById('interaction-prompt');
+let pointedItem = null;
+
+// --- RANDOM SPAWNER ---
+function spawnItems() {
+    const types = [
+        { name: 'Rock', color: 0x888888, size: 0.5 },
+        { name: 'Wood', color: 0x5C4033, size: 0.8 }
+    ];
+
+    for (let i = 0; i < 50; i++) {
+        const type = types[Math.floor(Math.random() * types.length)];
+        const geo = type.name === 'Rock' ? 
+            new THREE.IcosahedronGeometry(type.size, 0) : 
+            new THREE.CylinderGeometry(0.3, 0.3, 2, 8);
+            
+        const mat = new THREE.MeshLambertMaterial({ color: type.color });
+        const mesh = new THREE.Mesh(geo, mat);
+
+        // Random Position on Terrain
+        const x = (Math.random() - 0.5) * 400;
+        const z = (Math.random() - 0.5) * 400;
+        
+        // Find height of terrain at this point
+        const groundRay = new THREE.Raycaster(new THREE.Vector3(x, 100, z), new THREE.Vector3(0, -1, 0));
+        const check = groundRay.intersectObject(terrain);
+        const y = check.length > 0 ? check[0].point.y : 0;
+
+        mesh.position.set(x, y + (type.name === 'Wood' ? 0 : 0.4), z);
+        if(type.name === 'Wood') mesh.rotation.z = Math.PI / 2;
+        
+        mesh.userData = { itemName: type.name }; // Store name for inventory
+        itemsGroup.add(mesh);
+    }
+}
+spawnItems();
+
+// --- INTERACTION LOGIC ---
+const interactionRaycaster = new THREE.Raycaster();
+
+function checkInteraction() {
+    if (isInventoryOpen) return;
+
+    // Raycast from center of screen (0,0)
+    interactionRaycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
+    const intersects = interactionRaycaster.intersectObjects(itemsGroup.children);
+
+    if (intersects.length > 0) {
+        const object = intersects[0].object;
+        const distance = intersects[0].distance;
+
+        // "1 foot" is roughly 0.5 to 1.0 units in Three.js scale
+        if (distance < 5) {
+            pointedItem = object;
+            promptUI.style.display = 'block';
+            promptUI.innerText = `Press Q to pick up ${object.userData.itemName}`;
+        } else {
+            pointedItem = null;
+            promptUI.style.display = 'none';
+        }
+    } else {
+        pointedItem = null;
+        promptUI.style.display = 'none';
+    }
+}
+
+// Listen for Q Key
+window.addEventListener('keydown', (e) => {
+    if (e.code === 'KeyQ' && pointedItem) {
+        addItemToInventory(pointedItem.userData.itemName);
+        buildInventoryUI();
+        
+        // Remove from world
+        itemsGroup.remove(pointedItem);
+        pointedItem = null;
+        promptUI.style.display = 'none';
+    }
+});
+
 // --- INVENTORY STATE ---
 const inventoryUI = document.getElementById('inventory');
 let isInventoryOpen = false;
@@ -160,6 +243,7 @@ function addItemToInventory(itemName) {
 }
 
 
+
 const raycaster = new THREE.Raycaster();
 const downVector = new THREE.Vector3(0, -1, 0); // Points straight down
 
@@ -201,11 +285,11 @@ function animate() {
             if (move.up) camera.position.y += speed;
             // Shift only works if we are above the ground
             if (move.dn && camera.position.y > groundHeight + playerHeight) {
-                camera.position.y -= speed;
-            }
+               camera.position.y -= speed;
+              }
+           }
+          checkInteraction(); // Check crosshair every frame
         }
-    }
-
     if (mixer) mixer.update(delta);
     renderer.render(scene, camera);
     stats.end();
