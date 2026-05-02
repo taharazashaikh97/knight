@@ -28,6 +28,7 @@ body {
         width: 400px;
         background: rgba(50, 50, 50, 0.9);
         border: 4px solid #222;
+        border-radius: 40%;
         padding: 10px;
         grid-template-columns: repeat(6, 1fr);
         gap: 5px;
