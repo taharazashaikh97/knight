@@ -5,6 +5,26 @@ body {
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
 }
 
+.slot {
+    cursor: grab;
+    user-select: none;
+}
+.slot:active { cursor: grabbing; }
+.slot.drag-over {
+    background: #555;
+    border-color: yellow;
+}
+/* Style for the "Drop" hint */
+#drop-zone {
+    position: absolute;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: #ff4444;
+    font-weight: bold;
+    display: none;
+}
+
     #interaction-prompt {
         display: none;
         position: absolute;
@@ -41,7 +61,7 @@ body {
         width: 400px;
         background: rgba(50, 50, 50, 0.9);
         border: 4px solid #222;
-        border-radius: 40%;
+        border-radius: 7%;
         padding: 10px;
         grid-template-columns: repeat(6, 1fr);
         gap: 5px;
@@ -53,6 +73,7 @@ body {
         height: 60px;
         background: #888;
         border: 2px solid #444;
+        border-radius: 13%;
         display: flex;
         align-items: center;
         justify-content: center;
