@@ -94,6 +94,9 @@ document.addEventListener('keyup', (e) => {
     if (e.code === 'ShiftLeft') move.dn = false;
 });
 
+const raycaster = new THREE.Raycaster();
+const downVector = new THREE.Vector3(0, -1, 0); // Points straight down
+
 // --- 6. ANIMATION LOOP ---
 const clock = new THREE.Clock();
 
@@ -104,15 +107,38 @@ function animate() {
 
     if (controls.isLocked) {
         const speed = 40 * delta;
+
+        // Move based on keys
         if (move.fwd) controls.moveForward(speed);
         if (move.bkd) controls.moveForward(-speed);
         if (move.lft) controls.moveRight(-speed);
         if (move.rgt) controls.moveRight(speed);
-        if (move.up) camera.position.y += speed;
-        if (move.dn) camera.position.y -= speed;
+        
+        // --- TERRAIN COLLISION LOGIC ---
+        // We cast a ray from high above the camera down to the ground
+        const rayPos = camera.position.clone();
+        rayPos.y += 10; // Start the ray slightly above the camera
+        raycaster.set(rayPos, downVector);
 
-        // Follow the terrain height (Simple approximation)
-        if (camera.position.y < 3) camera.position.y = 3;
+        // Check if the ray hits the terrain
+        const intersect = raycaster.intersectObject(terrain);
+
+        if (intersect.length > 0) {
+            const groundHeight = intersect[0].point.y;
+            const playerHeight = 1.8; // How high the "eyes" are from the ground
+
+            // If the camera tries to go below the ground (+ player height)
+            if (camera.position.y < groundHeight + playerHeight) {
+                camera.position.y = groundHeight + playerHeight;
+            }
+            
+            // Manual Fly controls (Space/Shift)
+            if (move.up) camera.position.y += speed;
+            // Shift only works if we are above the ground
+            if (move.dn && camera.position.y > groundHeight + playerHeight) {
+                camera.position.y -= speed;
+            }
+        }
     }
 
     if (mixer) mixer.update(delta);
