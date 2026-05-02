@@ -4,24 +4,23 @@ import { PointerLockControls } from 'three/examples/jsm/controls/PointerLockCont
 import Stats from 'stats';
 
 // --- 1. INITIALIZATION & PERFORMANCE ---
-const horizonColor = 0xdddddd; // Greyish-white
+const horizonColor = 0xdddddd; 
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(horizonColor);
-scene.fog = new THREE.Fog(horizonColor, 20, 150); // Fog helps potato PCs by not rendering far objects
+scene.fog = new THREE.Fog(horizonColor, 20, 150);
 
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
 camera.position.set(0, 5, 10);
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
-// Limit pixel ratio to 1 for performance on high-res "potato" screens
 renderer.setPixelRatio(1); 
 renderer.setSize(window.innerWidth, window.innerHeight);
 document.body.appendChild(renderer.domElement);
 
 // --- 2. FPS COUNTER ---
 const stats = new Stats();
-stats.showPanel(0); // 0: fps
+stats.showPanel(0); 
 document.body.appendChild(stats.dom);
 
 // --- 3. LIGHTING ---
@@ -33,15 +32,13 @@ dirLight.position.set(5, 10, 7.5);
 scene.add(dirLight);
 
 // --- 4. WORLD ELEMENTS (Floor & Grid) ---
-// Solid Greyish-White Floor
 const floorGeo = new THREE.PlaneGeometry(2000, 2000);
 const floorMat = new THREE.MeshStandardMaterial({ color: 0xeeeeee, roughness: 1 });
 const floor = new THREE.Mesh(floorGeo, floorMat);
 floor.rotation.x = -Math.PI / 2;
-floor.position.y = -0.05; // Slightly below grid to prevent flickering
+floor.position.y = -0.05; 
 scene.add(floor);
 
-// Visual Grid
 const grid = new THREE.GridHelper(2000, 100, 0xaaaaaa, 0xcccccc);
 scene.add(grid);
 
@@ -49,6 +46,7 @@ scene.add(grid);
 const loader = new GLTFLoader();
 let mixer;
 
+// Original Knight Model
 loader.load('knight.glb', (gltf) => {
     scene.add(gltf.scene);
     if (gltf.animations.length > 0) {
@@ -56,6 +54,21 @@ loader.load('knight.glb', (gltf) => {
         mixer.clipAction(gltf.animations[0]).play();
     }
 }, undefined, (err) => console.error("Check if knight.glb is in the folder!", err));
+
+// --- NEW: GROUND OBJECT SUMMON ---
+// This loads your second object and places it firmly on the ground
+loader.load('car.glb', (gltf) => {
+    const groundObj = gltf.scene;
+    
+    // Position: x, y, z (0 on Y means it is touching the floor)
+    groundObj.position.set(10, 0, 0); 
+    
+    // Scale: Adjust these numbers if the object is too big or small
+    groundObj.scale.set(1, 1, 1); 
+    
+    scene.add(groundObj);
+    console.log("Ground object loaded successfully!");
+}, undefined, (err) => console.error("Error loading ground object!", err));
 
 // --- 6. SPECTATOR CONTROLS ---
 const controls = new PointerLockControls(camera, document.body);
@@ -89,7 +102,7 @@ document.addEventListener('keyup', (e) => {
 const clock = new THREE.Clock();
 
 function animate() {
-    stats.begin(); // Start FPS tracking
+    stats.begin(); 
     
     requestAnimationFrame(animate);
     const delta = clock.getDelta();
@@ -104,8 +117,6 @@ function animate() {
         if (move.up) camera.position.y += speed;
         if (move.dn) camera.position.y -= speed;
 
-        // GROUND BOUNDARY: Prevents flying under the floor
-        // 1.6 is roughly average human height
         if (camera.position.y < 1.6) {
             camera.position.y = 1.6;
         }
@@ -114,12 +125,11 @@ function animate() {
     if (mixer) mixer.update(delta);
     renderer.render(scene, camera);
 
-    stats.end(); // End FPS tracking
+    stats.end(); 
 }
 
 animate();
 
-// Handle Resize
 window.addEventListener('resize', () => {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
