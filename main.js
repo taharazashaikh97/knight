@@ -94,6 +94,68 @@ document.addEventListener('keyup', (e) => {
     if (e.code === 'ShiftLeft') move.dn = false;
 });
 
+// --- . INVENTORY STATE ---
+const inventoryUI = document.getElementById('inventory');
+let isInventoryOpen = false;
+
+// Create 24 empty slots
+const inventoryData = Array.from({ length: 24 }, () => ({ item: null, count: 0 }));
+
+// Create the UI slots
+function buildInventoryUI() {
+    inventoryUI.innerHTML = '';
+    inventoryData.forEach((slot, index) => {
+        const div = document.createElement('div');
+        div.className = 'slot';
+        if (slot.item) {
+            div.innerHTML = `<span>${slot.item}</span><div class="count">${slot.count}</div>`;
+        }
+        inventoryUI.appendChild(div);
+    });
+}
+buildInventoryUI();
+
+// --- 2. TOGGLE LOGIC ---
+window.addEventListener('keydown', (e) => {
+    if (e.code === 'KeyE') {
+        isInventoryOpen = !isInventoryOpen;
+        inventoryUI.style.display = isInventoryOpen ? 'grid' : 'none';
+        
+        // Unlock/Lock mouse based on inventory
+        if (isInventoryOpen) {
+            controls.unlock();
+        } else {
+            controls.lock();
+        }
+    }
+    
+    // DEBUG: Press 'T' to simulate picking up a "Rock"
+    if (e.code === 'KeyT') {
+        addItemToInventory("Rock");
+        buildInventoryUI();
+    }
+});
+
+// --- 3. ADD ITEM LOGIC (Stack limit 24) ---
+function addItemToInventory(itemName) {
+    // 1. Try to find an existing stack of this item that isn't full
+    let targetSlot = inventoryData.find(s => s.item === itemName && s.count < 24);
+
+    if (targetSlot) {
+        targetSlot.count++;
+    } else {
+        // 2. Otherwise, find the first empty slot
+        let emptySlot = inventoryData.find(s => s.item === null);
+        if (emptySlot) {
+            emptySlot.item = itemName;
+            emptySlot.count = 1;
+        } else {
+            console.log("Inventory Full!");
+        }
+    }
+}
+
+
 const raycaster = new THREE.Raycaster();
 const downVector = new THREE.Vector3(0, -1, 0); // Points straight down
 
@@ -105,10 +167,9 @@ function animate() {
     requestAnimationFrame(animate);
     const delta = clock.getDelta();
 
-    if (controls.isLocked) {
+    // Only move if the inventory is CLOSED and controls are LOCKED
+    if (controls.isLocked && !isInventoryOpen) {
         const speed = 40 * delta;
-
-        // Move based on keys
         if (move.fwd) controls.moveForward(speed);
         if (move.bkd) controls.moveForward(-speed);
         if (move.lft) controls.moveRight(-speed);
