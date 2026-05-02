@@ -43,7 +43,7 @@ const config = {
     accel: 85.0, 
     drag: 0.96,       // Natural slowing down
     brake: 120.0,     // Stronger than accel
-    baseTurn: 2.4,    // Turning at low speed
+    baseTurn: 1.4,    // Turning at low speed
     maxSpeed: 110.0,
     rollStrength: 0.05 // How much the car leans
 };
@@ -144,8 +144,8 @@ function animate() {
         // --- PLAYER WALKING (UNTOUCHED) ---
         if (keys['KeyW']) player.translateZ(-playerWalkSpeed * delta);
         if (keys['KeyS']) player.translateZ(playerWalkSpeed * delta);
-        if (keys['KeyA']) player.rotation.y += 3.0 * delta;
-        if (keys['KeyD']) player.rotation.y -= 3.0 * delta;
+        if (keys['KeyA']) player.rotation.y -= 3.0 * delta;
+        if (keys['KeyD']) player.rotation.y += 3.0 * delta;
 
         const pIdealPos = playerCamOffset.clone().applyQuaternion(player.quaternion).add(player.position);
         camera.position.lerp(pIdealPos, 0.1);
