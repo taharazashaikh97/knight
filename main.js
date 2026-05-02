@@ -3,69 +3,75 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { PointerLockControls } from 'three/examples/jsm/controls/PointerLockControls.js';
 import Stats from 'stats';
 
-// --- 1. SETUP ---
+// --- 1. THE CLASSIC GREY SETUP ---
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0xA2D2FF);
-const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 1.0, 500);
+scene.background = new THREE.Color(0xcccccc); // Grey Sky
+scene.fog = new THREE.Fog(0xcccccc, 10, 500);
+
+const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 1.0, 1000);
 const renderer = new THREE.WebGLRenderer({ antialias: false, precision: 'lowp' });
 renderer.setSize(window.innerWidth, window.innerHeight);
 document.body.appendChild(renderer.domElement);
 
 const stats = new Stats();
 document.body.appendChild(stats.dom);
-scene.add(new THREE.AmbientLight(0xffffff, 1.4));
+scene.add(new THREE.AmbientLight(0xffffff, 1.0));
 
-// --- 2. GROUND (THE FIX: Y = 0) ---
-// We set the ground to 0 so math is easier
-const ground = new THREE.Mesh(new THREE.PlaneGeometry(2000, 2000), new THREE.MeshLambertMaterial({ color: 0xF4A460 }));
-ground.rotation.x = -Math.PI / 2;
-ground.position.y = 0; 
-scene.add(ground);
+// --- 2. THE GREY FLOOR & GRID ---
+const floor = new THREE.Mesh(
+    new THREE.PlaneGeometry(2000, 2000), 
+    new THREE.MeshLambertMaterial({ color: 0x999999 }) // Darker grey floor
+);
+floor.rotation.x = -Math.PI / 2;
+floor.position.y = 0; 
+scene.add(floor);
 
-// --- 3. PLAYER & CAR ---
-let isDriving = false; 
-const carHolder = new THREE.Group(); 
-// THE FIX: Car sits exactly on the ground (y=0)
-carHolder.position.set(0, 0, 0); 
+const grid = new THREE.GridHelper(2000, 100, 0x444444, 0x888888);
+grid.position.y = 0.01;
+scene.add(grid);
+
+// --- 3. CAR & PLAYER ---
+let isDriving = false;
+const carHolder = new THREE.Group();
+carHolder.position.set(0, 0, 0);
 scene.add(carHolder);
 
 const player = new THREE.Mesh(
     new THREE.CapsuleGeometry(0.5, 1, 4, 8),
     new THREE.MeshLambertMaterial({ color: 0x00ff00 })
 );
-// THE FIX: Player foot is at y=0 (Capsule height is 2, so center is y=1)
-player.position.set(5, 1, 5); 
+player.position.set(5, 1, 5);
 scene.add(player);
 
 const controls = new PointerLockControls(camera, document.body);
 document.addEventListener('click', () => controls.lock());
 
 let carModel, speed = 0;
-const config = { accel: 70.0, friction: 0.95, turn: 1.5, maxSpeed: 90.0 };
-const playerWalkSpeed = 15.0;
+const config = { accel: 80.0, friction: 0.94, turn: 2.0, maxSpeed: 100.0 };
+const playerSpeed = 15.0;
 const keys = {};
 
 const loader = new GLTFLoader();
 loader.load('car.glb', (gltf) => {
     carModel = gltf.scene;
-    carModel.rotation.y = Math.PI;
-    // Ensure car model isn't floating inside the holder
-    carModel.position.y = 0; 
+    // We force the internal model to face "Forward" (-Z)
+    // If it's still backwards, change Math.PI to 0
+    carModel.rotation.y = Math.PI; 
     carHolder.add(carModel);
 });
 
-// --- 4. COLLISION & CONTROLS ---
+// --- 4. KEYBOARD & COLLISION ---
 window.addEventListener('keydown', (e) => { 
     keys[e.code] = true; 
     if (e.code === 'KeyE') {
         const dist = player.position.distanceTo(carHolder.position);
-        if (!isDriving && dist < 5) {
+        if (!isDriving && dist < 6) {
             isDriving = true;
             player.visible = false;
         } else if (isDriving) {
             isDriving = false;
             player.visible = true;
-            player.position.set(carHolder.position.x + 3, 1, carHolder.position.z);
+            player.position.set(carHolder.position.x + 4, 1, carHolder.position.z);
             speed = 0;
         }
     }
@@ -80,53 +86,51 @@ function animate() {
     const delta = clock.getDelta();
     stats.begin();
 
-    if (controls.isLocked) {
-        if (isDriving) {
-            // DRIVING MODE
-            if (keys['KeyW']) speed -= config.accel * delta;
-            if (keys['KeyS']) speed += config.accel * delta;
-            speed *= config.friction;
+    if (isDriving) {
+        // --- DRIVING MODE (Simplified Fix) ---
+        // W adds positive speed, S adds negative speed
+        if (keys['KeyW']) speed += config.accel * delta;
+        if (keys['KeyS']) speed -= config.accel * delta;
+        
+        speed *= config.friction;
 
-            if (Math.abs(speed) > 0.1) {
-                const sDir = speed > 0 ? 1 : -1;
-                if (keys['KeyA']) carHolder.rotation.y -= config.turn * delta * sDir;
-                if (keys['KeyD']) carHolder.rotation.y += config.turn * delta * sDir;
-            }
-            carHolder.translateZ(speed * delta);
-
-            // Simple Camera Follow
-            const camOffset = new THREE.Vector3(0, 4, 10).applyQuaternion(carHolder.quaternion).add(carHolder.position);
-            camera.position.lerp(camOffset, 0.1);
-            camera.lookAt(carHolder.position);
-
-        } else {
-            // WALKING MODE
-            const oldPos = player.position.clone(); // Record position before moving
-
-            if (keys['KeyW']) player.translateZ(-playerWalkSpeed * delta);
-            if (keys['KeyS']) player.translateZ(playerWalkSpeed * delta);
-            
-            // --- THE SOLID CAR FIX (Collision) ---
-            const distToCar = player.position.distanceTo(carHolder.position);
-            const carRadius = 3.5; // Adjust this number based on your car's size
-            
-            if (distToCar < carRadius) {
-                // If too close, push the player back to the old position
-                player.position.copy(oldPos);
-            }
-
-            player.rotation.y = camera.rotation.y;
-            camera.position.copy(player.position).add(new THREE.Vector3(0, 1, 0));
+        // Steering: Fixed A and D
+        if (Math.abs(speed) > 0.1) {
+            const steeringForce = speed > 0 ? 1 : -1;
+            if (keys['KeyA']) carHolder.rotation.y += config.turn * delta * steeringForce;
+            if (keys['KeyD']) carHolder.rotation.y -= config.turn * delta * steeringForce;
         }
+
+        // We move the car along its "Forward" axis
+        // If W makes it go backwards, change this to -speed
+        carHolder.translateZ(speed * delta);
+
+        // Third Person Camera Follow
+        const camPos = new THREE.Vector3(0, 5, 12).applyQuaternion(carHolder.quaternion).add(carHolder.position);
+        camera.position.lerp(camPos, 0.1);
+        camera.lookAt(carHolder.position.x, carHolder.position.y + 1, carHolder.position.z);
+
+    } else {
+        // --- WALKING MODE (Third Person) ---
+        const oldPos = player.position.clone();
+
+        if (keys['KeyW']) player.translateZ(-playerSpeed * delta);
+        if (keys['KeyS']) player.translateZ(playerSpeed * delta);
+        if (keys['KeyA']) player.rotation.y += 3.0 * delta;
+        if (keys['KeyD']) player.rotation.y -= 3.0 * delta;
+
+        // Simple Collision
+        if (player.position.distanceTo(carHolder.position) < 4) {
+            player.position.copy(oldPos);
+        }
+
+        // Third Person Walking Camera
+        const pCamPos = new THREE.Vector3(0, 4, 8).applyQuaternion(player.quaternion).add(player.position);
+        camera.position.lerp(pCamPos, 0.1);
+        camera.lookAt(player.position.x, player.position.y + 1, player.position.z);
     }
 
     renderer.render(scene, camera);
     stats.end();
 }
 animate();
-
-window.addEventListener('resize', () => {
-    camera.aspect = window.innerWidth / window.innerHeight;
-    camera.updateProjectionMatrix();
-    renderer.setSize(window.innerWidth, window.innerHeight);
-});
