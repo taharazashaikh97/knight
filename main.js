@@ -102,20 +102,38 @@ function animate() {
         
         // Natural Drag (Simulating air resistance)
         speed *= config.drag;
+// --- IMPROVED FORZA STEERING LOGIC ---
+if (Math.abs(speed) > 1.0) { // Increased threshold to prevent spinning on spot
+    
+    // 1. Calculate turn strength based on speed
+    // The faster you go, the more it turns, up to a limit
+    const speedFactor = Math.min(Math.abs(speed) / 30, 1.0); 
+    
+    // 2. Prevent "Twitchy" steering at high speeds (Speed Sensitivity)
+    // As you approach max speed, we actually reduce turn power slightly for stability
+    const highSpeedStability = speed > 50 ? 0.6 : 1.0;
+    
+    const turnStrength = config.baseTurn * speedFactor * highSpeedStability;
 
-        // --- 2. SPEED-SENSITIVE STEERING (FORZA TRICK) ---
-        // Formula: Turning becomes harder the faster you go
-        const speedFactor = Math.abs(speed) / config.maxSpeed;
-        const currentTurnAbility = config.baseTurn * (1.1 - speedFactor * 0.6);
+    const sDir = speed > 0 ? 1 : -1;
+    let targetRotation = 0;
 
-        if (Math.abs(speed) > 0.5) {
-            const sDir = speed > 0 ? 1 : -1;
-            let actualTurn = 0;
-            
-            if (keys['KeyA']) actualTurn = currentTurnAbility * delta * sDir;
-            if (keys['KeyD']) actualTurn = -currentTurnAbility * delta * sDir;
-            
-            carHolder.rotation.y += actualTurn;
+    if (keys['KeyA']) targetRotation = turnStrength * delta * sDir;
+    if (keys['KeyD']) targetRotation = -turnStrength * delta * sDir;
+
+    // 3. Smoothly apply the rotation (no sudden snaps)
+    carHolder.rotation.y += targetRotation;
+
+    // 4. Body Lean (Visual only)
+    carModel.rotation.z = THREE.MathUtils.lerp(
+        carModel.rotation.z, 
+        targetRotation * 15, 
+        0.1
+    );
+} else {
+    // Smoothly straighten the car lean when stopped
+    carModel.rotation.z = THREE.MathUtils.lerp(carModel.rotation.z, 0, 0.1);
+}
 
             // --- 3. BODY ROLL (VISUAL PHYSICS) ---
             // Leans the car model slightly when turning
