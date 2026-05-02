@@ -3,44 +3,40 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { PointerLockControls } from 'three/examples/jsm/controls/PointerLockControls.js';
 import Stats from 'stats';
 
-// --- 1. SETUP & STYLIZED WORLD ---
+// --- 1. SETUP ---
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0xA2D2FF);
-scene.fog = new THREE.Fog(0xFFEFD5, 10, 200);
-
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 1.0, 500);
 const renderer = new THREE.WebGLRenderer({ antialias: false, precision: 'lowp' });
-renderer.setPixelRatio(1);
 renderer.setSize(window.innerWidth, window.innerHeight);
 document.body.appendChild(renderer.domElement);
 
 const stats = new Stats();
 document.body.appendChild(stats.dom);
-
 scene.add(new THREE.AmbientLight(0xffffff, 1.4));
-const sun = new THREE.DirectionalLight(0xfff5e1, 1.0);
-sun.position.set(10, 20, 10);
-scene.add(sun);
 
-// --- 2. ENVIRONMENT ---
-const floor = new THREE.Mesh(new THREE.PlaneGeometry(2000, 2000), new THREE.MeshLambertMaterial({ color: 0xF4A460 }));
-floor.rotation.x = -Math.PI / 2;
-floor.position.y = -2.0; 
-scene.add(floor);
+// --- 2. GROUND (THE FIX: Y = 0) ---
+// We set the ground to 0 so math is easier
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(2000, 2000), new THREE.MeshLambertMaterial({ color: 0xF4A460 }));
+ground.rotation.x = -Math.PI / 2;
+ground.position.y = 0; 
+scene.add(ground);
 
-// --- 3. PLAYER, CAR, & CONTROLS ---
+// --- 3. PLAYER & CAR ---
 let isDriving = false; 
 const carHolder = new THREE.Group(); 
+// THE FIX: Car sits exactly on the ground (y=0)
+carHolder.position.set(0, 0, 0); 
 scene.add(carHolder);
 
 const player = new THREE.Mesh(
     new THREE.CapsuleGeometry(0.5, 1, 4, 8),
     new THREE.MeshLambertMaterial({ color: 0x00ff00 })
 );
-player.position.set(5, -0.5, 5); 
+// THE FIX: Player foot is at y=0 (Capsule height is 2, so center is y=1)
+player.position.set(5, 1, 5); 
 scene.add(player);
 
-// MOUSE CONTROL SETUP
 const controls = new PointerLockControls(camera, document.body);
 document.addEventListener('click', () => controls.lock());
 
@@ -52,30 +48,24 @@ const keys = {};
 const loader = new GLTFLoader();
 loader.load('car.glb', (gltf) => {
     carModel = gltf.scene;
-    carModel.rotation.y = Math.PI; 
+    carModel.rotation.y = Math.PI;
+    // Ensure car model isn't floating inside the holder
+    carModel.position.y = 0; 
     carHolder.add(carModel);
 });
 
-// UI
-const ui = document.createElement('div');
-ui.style.cssText = 'position:absolute; top:20px; width:100%; text-align:center; color:black; font-family:Arial; font-weight:bold;';
-ui.innerHTML = 'CLICK TO START | WASD TO WALK | MOUSE TO LOOK';
-document.body.appendChild(ui);
-
-// --- 4. KEYBOARD LISTENERS ---
+// --- 4. COLLISION & CONTROLS ---
 window.addEventListener('keydown', (e) => { 
     keys[e.code] = true; 
     if (e.code === 'KeyE') {
-        const distance = player.position.distanceTo(carHolder.position);
-        if (!isDriving && distance < 6) {
+        const dist = player.position.distanceTo(carHolder.position);
+        if (!isDriving && dist < 5) {
             isDriving = true;
             player.visible = false;
-            ui.innerHTML = 'DRIVING | E TO EXIT';
         } else if (isDriving) {
             isDriving = false;
             player.visible = true;
-            player.position.set(carHolder.position.x + 3, -0.5, carHolder.position.z);
-            ui.innerHTML = 'WALKING | E TO ENTER';
+            player.position.set(carHolder.position.x + 3, 1, carHolder.position.z);
             speed = 0;
         }
     }
@@ -84,17 +74,15 @@ window.addEventListener('keyup', (e) => { keys[e.code] = false; });
 
 // --- 5. ANIMATION LOOP ---
 const clock = new THREE.Clock();
-const carCamOffset = new THREE.Vector3(0, 4, 10);
-const playerCamOffset = new THREE.Vector3(0, 3, 6);
 
 function animate() {
     requestAnimationFrame(animate);
     const delta = clock.getDelta();
     stats.begin();
 
-    if (controls.isLocked) { // Only move if mouse is locked
+    if (controls.isLocked) {
         if (isDriving) {
-            // DRIVING PHYSICS
+            // DRIVING MODE
             if (keys['KeyW']) speed -= config.accel * delta;
             if (keys['KeyS']) speed += config.accel * delta;
             speed *= config.friction;
@@ -106,24 +94,29 @@ function animate() {
             }
             carHolder.translateZ(speed * delta);
 
-            // CAMERA: In driving mode, we keep the original follow logic
-            const idealPos = carCamOffset.clone().applyQuaternion(carHolder.quaternion).add(carHolder.position);
-            camera.position.lerp(idealPos, 0.1);
-            camera.lookAt(carHolder.position.x, carHolder.position.y + 1, carHolder.position.z);
+            // Simple Camera Follow
+            const camOffset = new THREE.Vector3(0, 4, 10).applyQuaternion(carHolder.quaternion).add(carHolder.position);
+            camera.position.lerp(camOffset, 0.1);
+            camera.lookAt(carHolder.position);
 
         } else {
-            // WALKING PHYSICS
+            // WALKING MODE
+            const oldPos = player.position.clone(); // Record position before moving
+
             if (keys['KeyW']) player.translateZ(-playerWalkSpeed * delta);
             if (keys['KeyS']) player.translateZ(playerWalkSpeed * delta);
             
-            // MOUSE ROTATION: Use the delta movement of the mouse to rotate the player
-            // PointerLockControls handles the camera rotation automatically, 
-            // but we make the player body follow the camera direction.
-            player.rotation.y = camera.rotation.y;
+            // --- THE SOLID CAR FIX (Collision) ---
+            const distToCar = player.position.distanceTo(carHolder.position);
+            const carRadius = 3.5; // Adjust this number based on your car's size
+            
+            if (distToCar < carRadius) {
+                // If too close, push the player back to the old position
+                player.position.copy(oldPos);
+            }
 
-            // CAMERA: Stick to player's head
-            const pPos = new THREE.Vector3(0, 2, 0).add(player.position);
-            camera.position.copy(pPos);
+            player.rotation.y = camera.rotation.y;
+            camera.position.copy(player.position).add(new THREE.Vector3(0, 1, 0));
         }
     }
 
