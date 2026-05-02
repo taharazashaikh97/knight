@@ -104,36 +104,51 @@ let pointedItem = null;
 // --- RANDOM SPAWNER ---
 function spawnItems() {
     const types = [
-        { name: 'Rock', color: 0x888888, size: 0.5 },
-        { name: 'Wood', color: 0x5C4033, size: 0.8 }
+        { 
+            name: 'Rock', 
+            color: 0x888888, 
+            geo: new THREE.IcosahedronGeometry(0.6, 0),
+            groundOffset: 0.3 // Half the height to sit on surface
+        },
+        { 
+            name: 'Wood', 
+            color: 0x5C4033, 
+            geo: new THREE.CylinderGeometry(0.3, 0.3, 2, 8),
+            groundOffset: 0.3 // Since it's rotated sideways
+        }
     ];
 
-    for (let i = 0; i < 50; i++) {
+    for (let i = 0; i < 60; i++) {
         const type = types[Math.floor(Math.random() * types.length)];
-        const geo = type.name === 'Rock' ? 
-            new THREE.IcosahedronGeometry(type.size, 0) : 
-            new THREE.CylinderGeometry(0.3, 0.3, 2, 8);
-            
         const mat = new THREE.MeshLambertMaterial({ color: type.color });
-        const mesh = new THREE.Mesh(geo, mat);
+        const mesh = new THREE.Mesh(type.geo, mat);
 
-        // Random Position on Terrain
-        const x = (Math.random() - 0.5) * 400;
-        const z = (Math.random() - 0.5) * 400;
+        // 1. Pick random horizontal position
+        const x = (Math.random() - 0.5) * 600;
+        const z = (Math.random() - 0.5) * 600;
         
-        // Find height of terrain at this point
+        // 2. Use Raycaster to find the EXACT ground height at this (x, z)
         const groundRay = new THREE.Raycaster(new THREE.Vector3(x, 100, z), new THREE.Vector3(0, -1, 0));
-        const check = groundRay.intersectObject(terrain);
-        const y = check.length > 0 ? check[0].point.y : 0;
+        const intersects = groundRay.intersectObject(terrain);
 
-        mesh.position.set(x, y + (type.name === 'Wood' ? 0 : 0.4), z);
-        if(type.name === 'Wood') mesh.rotation.z = Math.PI / 2;
-        
-        mesh.userData = { itemName: type.name }; // Store name for inventory
-        itemsGroup.add(mesh);
+        if (intersects.length > 0) {
+            const y = intersects[0].point.y;
+
+            // 3. Apply position and rotation
+            if (type.name === 'Wood') {
+                mesh.rotation.z = Math.PI / 2;
+                mesh.rotation.y = Math.random() * Math.PI; // Random spin so they aren't all parallel
+            }
+            
+            // 4. Set position: Ground Y + the specific Offset for that item
+            mesh.position.set(x, y + type.groundOffset, z);
+            
+            mesh.userData = { itemName: type.name };
+            itemsGroup.add(mesh);
+        }
     }
 }
-spawnItems();
+spawnitems();
 
 // --- INTERACTION LOGIC ---
 const interactionRaycaster = new THREE.Raycaster();
