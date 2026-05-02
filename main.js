@@ -3,7 +3,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { PointerLockControls } from 'three/examples/jsm/controls/PointerLockControls.js';
 import Stats from 'stats';
 
-// --- 1. SETUP ---
+// ---  SETUP ---
 const horizonColor = 0xdddddd;
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(horizonColor);
@@ -20,13 +20,13 @@ document.body.appendChild(renderer.domElement);
 const stats = new Stats();
 document.body.appendChild(stats.dom);
 
-// --- 2. LIGHTING (Standard setup for low-end) ---
+// ---  LIGHTING (Standard setup for low-end) ---
 scene.add(new THREE.AmbientLight(0xffffff, 0.8));
 const sun = new THREE.DirectionalLight(0xffffff, 0.6);
 sun.position.set(10, 20, 10);
 scene.add(sun);
 
-// --- 3. TEXTURED TERRAIN ---
+// --- TEXTURED TERRAIN ---
 const textureLoader = new THREE.TextureLoader();
 // Note: Use a low-res (512x512 or 1024x1024) seamless texture
 const grassTexture = textureLoader.load('https://threejs.org/examples/textures/terrain/grasslight-big.jpg');
@@ -58,7 +58,7 @@ const terrain = new THREE.Mesh(terrainGeo, terrainMat);
 terrain.rotation.x = -Math.PI / 2;
 scene.add(terrain);
 
-// --- 4. MODEL LOADING ---
+// --- MODEL LOADING ---
 const loader = new GLTFLoader();
 let mixer;
 
@@ -72,7 +72,7 @@ loader.load('knight.glb', (gltf) => {
     }
 });
 
-// --- 5. SPECTATOR CONTROLS (UNTOUCHED) ---
+// --- SPECTATOR CONTROLS (UNTOUCHED) ---
 const controls = new PointerLockControls(camera, document.body);
 document.addEventListener('click', () => controls.lock());
 
@@ -94,7 +94,7 @@ document.addEventListener('keyup', (e) => {
     if (e.code === 'ShiftLeft') move.dn = false;
 });
 
-// --- . INVENTORY STATE ---
+// --- INVENTORY STATE ---
 const inventoryUI = document.getElementById('inventory');
 let isInventoryOpen = false;
 
@@ -115,13 +115,17 @@ function buildInventoryUI() {
 }
 buildInventoryUI();
 
-// --- 2. TOGGLE LOGIC ---
+// --- TOGGLE LOGIC ---
+const crosshair = document.getElementById('crosshair');
+
 window.addEventListener('keydown', (e) => {
     if (e.code === 'KeyE') {
         isInventoryOpen = !isInventoryOpen;
-        inventoryUI.style.display = isInventoryOpen ? 'grid' : 'none';
         
-        // Unlock/Lock mouse based on inventory
+        // UI Toggles
+        inventoryUI.style.display = isInventoryOpen ? 'grid' : 'none';
+        crosshair.style.display = isInventoryOpen ? 'none' : 'block'; // Hide dot in inventory
+        
         if (isInventoryOpen) {
             controls.unlock();
         } else {
@@ -129,14 +133,14 @@ window.addEventListener('keydown', (e) => {
         }
     }
     
-    // DEBUG: Press 'T' to simulate picking up a "Rock"
+    // Test Item pickup
     if (e.code === 'KeyT') {
         addItemToInventory("Rock");
         buildInventoryUI();
     }
 });
 
-// --- 3. ADD ITEM LOGIC (Stack limit 24) ---
+// --- ADD ITEM LOGIC (Stack limit 24) ---
 function addItemToInventory(itemName) {
     // 1. Try to find an existing stack of this item that isn't full
     let targetSlot = inventoryData.find(s => s.item === itemName && s.count < 24);
@@ -159,7 +163,7 @@ function addItemToInventory(itemName) {
 const raycaster = new THREE.Raycaster();
 const downVector = new THREE.Vector3(0, -1, 0); // Points straight down
 
-// --- 6. ANIMATION LOOP ---
+// --- ANIMATION LOOP ---
 const clock = new THREE.Clock();
 
 function animate() {
